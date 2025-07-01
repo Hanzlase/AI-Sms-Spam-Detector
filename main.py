@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 import joblib
 import numpy as np
 from mangum import Mangum
+import os
 
 app = FastAPI()
 
@@ -12,8 +12,9 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # Load the trained Naive Bayes classifier and TF-IDF vectorizer
-nb_classifier = joblib.load('model/nb_classifier.pkl')
-vectorizer = joblib.load('model/vectorizer.pkl')
+model_dir = "model"
+nb_classifier = joblib.load(os.path.join(model_dir, "nb_classifier.pkl"))
+vectorizer = joblib.load(os.path.join(model_dir, "vectorizer.pkl"))
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -21,24 +22,17 @@ async def home(request: Request):
 
 @app.post("/predict")
 async def predict(message: str = Form(...)):
-    # Convert the message into a TF-IDF vector
     message_vec = vectorizer.transform([message])
-
-    # Use the trained classifier to make a prediction
     prediction = nb_classifier.predict(message_vec)
-
-    # Get the probability/confidence of the prediction
     probability = np.max(nb_classifier.predict_proba(message_vec))
 
-    # Prepare the result to send back to frontend
     result = {
         'prediction': 'Spam' if prediction[0] == 1 else 'Ham',
         'probability': f"{probability * 100:.2f}%"
     }
-
     return result
 
-# This handler will make the FastAPI app work with Vercel serverless functions
+# Vercel serverless function handler
 handler = Mangum(app)
 
 if __name__ == "__main__":
